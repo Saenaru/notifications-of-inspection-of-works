@@ -52,3 +52,7 @@ python bot.py --chat-id YOUR_CHAT_ID
 python bot.py
 ```
 Бот запросит chat_id при запуске.
+
+## Цели проекта
+
+Код написан в учебных целях — для курса по Python и веб-разработке на сайте [Devman](https://dvmn.org).
