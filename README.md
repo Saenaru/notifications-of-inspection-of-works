@@ -32,8 +32,9 @@ pip install -r requirements.txt
 Создайте файл .env в корне проекта и добавьте:
 
 ```bash
-DEVMAN_API_TOKEN=ваш_api_ключ_devman
-TELEGRAM_BOT_TOKEN=ваш_токен_telegram_bot
+DEVMAN_TOKEN=ваш_api_ключ_devman
+TELEGRAM_TOKEN=ваш_токен_telegram_bot
+CHAT_ID=ваш_telegram_ID
 ```
 
 ### 4. Получение Chat ID
@@ -43,15 +44,10 @@ TELEGRAM_BOT_TOKEN=ваш_токен_telegram_bot
   - Из URL в веб-версии Telegram (например: https://web.telegram.org/#/im?p=u123456789_ → chat_id = 123456789)
 
 ## Запуск бота
-Способ 1: С указанием chat_id
-```bash
-python bot.py --chat-id YOUR_CHAT_ID
-```
-Способ 2: Интерактивный ввод
+
 ```bash
 python bot.py
 ```
-Бот запросит chat_id при запуске.
 
 ## Цели проекта
 
