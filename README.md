@@ -35,6 +35,7 @@ pip install -r requirements.txt
 DEVMAN_TOKEN=ваш_api_ключ_devman
 TELEGRAM_TOKEN=ваш_токен_telegram_bot
 CHAT_ID=ваш_telegram_ID
+LOG_BOT_TOKEN=ваш_токен_тг_логи
 ```
 
 ### 4. Получение Chat ID
