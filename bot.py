@@ -43,11 +43,10 @@ def check_for_new_reviews(api_key, last_ts=None):
 
 def format_review_message(attempt):
     """Форматирование сообщения о проверке"""
-    status = "❌ Есть ошибки" if attempt['is_negative'] else "✅ Принято"
+    status = "Есть ошибки" if attempt['is_negative'] else "Принято"
     return (
-        f"📝 <b>Проверена работа:</b> {attempt['lesson_title']}\n"
-        f"🔍 <b>Результат:</b> {status}\n"
-        f"📎 <a href='{attempt['lesson_url']}'>Ссылка на урок</a>"
+        f"<b>Проверена работа:</b> {attempt['lesson_title']}\n"
+        f"<b>Результат:</b> {status}\n"
     )
 
 def main():
