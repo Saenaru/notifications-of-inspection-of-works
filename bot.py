@@ -10,7 +10,6 @@ import traceback
 logger = logging.getLogger(__name__)
 
 def setup_logging(log_bot, log_chat_id):
-    """Настройка логгера для отправки сообщений в Telegram"""
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
@@ -21,40 +20,25 @@ def setup_logging(log_bot, log_chat_id):
             try:
                 log_bot.send_message(
                     chat_id=log_chat_id,
-                    text=self.format(record)
+                    text=self.format(record),
+                    parse_mode='HTML'
                 )
-            except TelegramError as e:
+            except Exception as e:
                 print(f"Ошибка отправки лога: {e}")
     
     telegram_handler = TelegramHandler()
-    telegram_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    telegram_handler.setFormatter(logging.Formatter(
+        '<b>%(levelname)s</b> - %(name)s\n%(asctime)s\n%(message)s'
+    ))
     logging.getLogger().addHandler(telegram_handler)
 
-def check_for_new_reviews(api_key, last_ts=None):
-    """Проверка новых ревью на Devman"""
-    response = requests.get(
-        'https://dvmn.org/api/long_polling/',
-        headers={'Authorization': f"Token {api_key}"},
-        params={'timestamp': last_ts} if last_ts else {},
-        timeout=90
-    )
-    response.raise_for_status()
-    return response.json()
-
-def format_review_message(attempt):
-    """Форматирование сообщения о проверке"""
-    status = "Есть ошибки" if attempt['is_negative'] else "Принято"
-    return (
-        f"<b>Проверена работа:</b> {attempt['lesson_title']}\n"
-        f"<b>Результат:</b> {status}\n"
-    )
-
 def main():
+    log_bot = None
     try:
         load_dotenv()
         
-        notification_bot = Bot(token=os.getenv('TELEGRAM_TOKEN'))
         log_bot = Bot(token=os.getenv('LOG_BOT_TOKEN'))
+        notification_bot = Bot(token=os.getenv('TELEGRAM_TOKEN'))
         chat_id = os.getenv('CHAT_ID')
         
         setup_logging(log_bot, chat_id)
@@ -86,7 +70,16 @@ def main():
                 time.sleep(1)
                 
     except Exception as e:
-        logger.critical(f"Критическая ошибка:\n{traceback.format_exc()}")
+        error_msg = f"Критическая ошибка:\n{traceback.format_exc()}"
+        try:
+            if log_bot:
+                log_bot.send_message(
+                    chat_id=os.getenv('CHAT_ID'),
+                    text=error_msg,
+                    parse_mode='HTML'
+                )
+        except Exception as send_error:
+            print(f"Не удалось отправить ошибку: {send_error}")
         raise
 
 if __name__ == '__main__':
