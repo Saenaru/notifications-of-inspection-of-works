@@ -7,25 +7,31 @@ from telegram import Bot
 from telegram.error import TelegramError
 import traceback
 
-
 logger = logging.getLogger(__name__)
 
-
-class TelegramLogsHandler(logging.Handler):
-    def __init__(self, bot, chat_id):
-        super().__init__()
-        self.bot = bot
-        self.chat_id = chat_id
-
-    def emit(self, record):
-        log_entry = self.format(record)
-        try:
-            self.bot.send_message(chat_id=self.chat_id, text=log_entry)
-        except TelegramError as e:
-            print(f"Ошибка при отправке лога в Telegram: {e}")
-
+def setup_logging(log_bot, log_chat_id):
+    """Настройка логгера для отправки сообщений в Telegram"""
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.INFO
+    )
+    
+    class TelegramHandler(logging.Handler):
+        def emit(self, record):
+            try:
+                log_bot.send_message(
+                    chat_id=log_chat_id,
+                    text=self.format(record)
+                )
+            except TelegramError as e:
+                print(f"Ошибка отправки лога: {e}")
+    
+    telegram_handler = TelegramHandler()
+    telegram_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(telegram_handler)
 
 def check_for_new_reviews(api_key, last_ts=None):
+    """Проверка новых ревью на Devman"""
     response = requests.get(
         'https://dvmn.org/api/long_polling/',
         headers={'Authorization': f"Token {api_key}"},
@@ -35,73 +41,54 @@ def check_for_new_reviews(api_key, last_ts=None):
     response.raise_for_status()
     return response.json()
 
+def format_review_message(attempt):
+    """Форматирование сообщения о проверке"""
+    status = "❌ Есть ошибки" if attempt['is_negative'] else "✅ Принято"
+    return (
+        f"📝 <b>Проверена работа:</b> {attempt['lesson_title']}\n"
+        f"🔍 <b>Результат:</b> {status}\n"
+        f"📎 <a href='{attempt['lesson_url']}'>Ссылка на урок</a>"
+    )
 
 def main():
     try:
-
         load_dotenv()
-        devman_token = os.getenv('DEVMAN_TOKEN')
-        telegram_token = os.getenv('TELEGRAM_TOKEN')
+        
+        notification_bot = Bot(token=os.getenv('TELEGRAM_TOKEN'))
+        log_bot = Bot(token=os.getenv('LOG_BOT_TOKEN'))
         chat_id = os.getenv('CHAT_ID')
-
-        if not devman_token:
-            raise ValueError("Переменная DEVMAN_TOKEN не установлена")
-        if not telegram_token:
-            raise ValueError("Переменная TELEGRAM_TOKEN не установлена")
-        if not chat_id:
-            raise ValueError("Переменная CHAT_ID не установлена")
-
-        bot = Bot(token=telegram_token)
         
-        logging.basicConfig(
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            level=logging.INFO
-        )
-        telegram_handler = TelegramLogsHandler(bot, chat_id)
-        telegram_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        logging.getLogger().addHandler(telegram_handler)
+        setup_logging(log_bot, chat_id)
+        logger.info("Бот запущен. Ожидание проверок...")
         
-        logger.info(f"Бот запущен для чата {chat_id}")
         last_ts = None
         while True:
             try:
-                result = check_for_new_reviews(devman_token, last_ts)
-                if result and result.get('status') == 'found':
+                result = check_for_new_reviews(os.getenv('DEVMAN_TOKEN'), last_ts)
+                
+                if result.get('status') == 'found':
                     for attempt in result['new_attempts']:
-                        lesson = attempt['lesson_title']
-                        result_msg = (
-                            "К сожалению, в работе нашлись ошибки."
-                            if attempt['is_negative']
-                            else "Преподавателю всё понравилось, "
-                                 "можно приступать к следующему уроку!"
+                        notification_bot.send_message(
+                            chat_id=chat_id,
+                            text=format_review_message(attempt),
+                            parse_mode='HTML'
                         )
-                        msg = (
-                            f"Преподаватель проверил работу!\n"
-                            f"Урок: {lesson}\n"
-                            f"Результат: {result_msg}"
-                        )
-                        try:
-                            bot.send_message(
-                                chat_id=chat_id,
-                                text=msg,
-                                parse_mode='HTML'
-                            )
-                            logger.info(f"Уведомление отправлено: {lesson}")
-                        except TelegramError as e:
-                            logger.error(f"Ошибка Telegram: {e}")
+                        logger.info(f"Отправлено уведомление: {attempt['lesson_title']}")
+                    
                     last_ts = result['last_attempt_timestamp']
+                    
             except requests.exceptions.ReadTimeout:
                 continue
             except requests.exceptions.RequestException as e:
-                logger.error(f"Ошибка запроса к API Devman: {e}")
+                logger.error(f"Ошибка API Devman: {e}")
                 time.sleep(5)
-                continue
-            time.sleep(1)
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка: {e}")
+                time.sleep(1)
+                
     except Exception as e:
-        error_traceback = traceback.format_exc()
-        logger.critical(f"Бот упал с ошибкой:\n{error_traceback}")
+        logger.critical(f"Критическая ошибка:\n{traceback.format_exc()}")
         raise
-
 
 if __name__ == '__main__':
     main()
