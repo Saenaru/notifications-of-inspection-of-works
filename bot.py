@@ -33,13 +33,16 @@ def setup_logging(log_bot, log_chat_id):
     logging.getLogger().addHandler(telegram_handler)
 
 def main():
-    log_bot = None
     try:
         load_dotenv()
         
-        log_bot = Bot(token=os.getenv('LOG_BOT_TOKEN'))
-        notification_bot = Bot(token=os.getenv('TELEGRAM_TOKEN'))
-        chat_id = os.getenv('CHAT_ID')
+        log_bot_token = os.environ['LOG_BOT_TOKEN']
+        telegram_token = os.environ['TELEGRAM_TOKEN']
+        chat_id = os.environ['CHAT_ID']
+        devman_token = os.environ['DEVMAN_TOKEN']
+        
+        log_bot = Bot(token=log_bot_token)
+        notification_bot = Bot(token=telegram_token)
         
         setup_logging(log_bot, chat_id)
         logger.info("Бот запущен. Ожидание проверок...")
@@ -47,8 +50,19 @@ def main():
         last_ts = None
         while True:
             try:
-                result = check_for_new_reviews(os.getenv('DEVMAN_TOKEN'), last_ts)
-                
+                result = check_for_new_reviews(devman_token, last_ts)
+            except requests.exceptions.ReadTimeout:
+                continue
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Ошибка API Devman: {e}")
+                time.sleep(5)
+                continue
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при проверке ревью: {e}")
+                time.sleep(1)
+                continue
+            
+            try:
                 if result.get('status') == 'found':
                     for attempt in result['new_attempts']:
                         notification_bot.send_message(
@@ -59,22 +73,23 @@ def main():
                         logger.info(f"Отправлено уведомление: {attempt['lesson_title']}")
                     
                     last_ts = result['last_attempt_timestamp']
-                    
-            except requests.exceptions.ReadTimeout:
-                continue
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Ошибка API Devman: {e}")
-                time.sleep(5)
             except Exception as e:
-                logger.error(f"Неожиданная ошибка: {e}")
+                logger.error(f"Ошибка при отправке уведомлений: {e}")
                 time.sleep(1)
                 
+    except KeyError as e:
+        error_msg = f"Отсутствует обязательная переменная окружения: {e}"
+        print(error_msg)
+        raise
     except Exception as e:
         error_msg = f"Критическая ошибка:\n{traceback.format_exc()}"
         try:
-            if log_bot:
+            log_bot_token = os.environ.get('LOG_BOT_TOKEN')
+            chat_id = os.environ.get('CHAT_ID')
+            if log_bot_token and chat_id:
+                log_bot = Bot(token=log_bot_token)
                 log_bot.send_message(
-                    chat_id=os.getenv('CHAT_ID'),
+                    chat_id=chat_id,
                     text=error_msg,
                     parse_mode='HTML'
                 )
