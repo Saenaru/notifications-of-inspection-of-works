@@ -65,6 +65,7 @@ def main():
         logger.info("Бот запущен. Ожидание проверок...")
         
         last_ts = None
+        
         while True:
             try:
                 result = check_for_new_reviews(devman_token, last_ts)
@@ -75,20 +76,20 @@ def main():
                 time.sleep(5)
                 continue
             
-            try:
-                if result.get('status') == 'found':
-                    for attempt in result['new_attempts']:
+            if result.get('status') == 'found':
+                for attempt in result['new_attempts']:
+                    try:
                         notification_bot.send_message(
                             chat_id=chat_id,
                             text=format_review_message(attempt),
                             parse_mode='HTML'
                         )
                         logger.info(f"Отправлено уведомление: {attempt['lesson_title']}")
-                    
-                    last_ts = result['last_attempt_timestamp']
-            except Exception as e:
-                logger.error(f"Ошибка при отправке уведомлений: {e}")
-                time.sleep(1)
+                    except Exception as e:
+                        logger.error(f"Ошибка при отправке уведомления: {e}")
+                        time.sleep(1)
+                
+                last_ts = result['last_attempt_timestamp']
 
     except KeyError as e:
         error_msg = f"Отсутствует обязательная переменная окружения: {e}"
